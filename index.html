@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TypingLab — Learn to type</title>
+<style>
+/* ============================================================
+   TypingLab — a touch typing course
+   Single file, no build step, progress saved in localStorage.
+   No on-screen keyboard, no sound, no text highlighting.
+   Chrome borrows from apple.com; the course structure, progress
+   dashboard and problem-key analysis borrow from edclub and
+   TypingMaster.
+   ============================================================ */
+
+:root{
+  --bg:#fbfbfd;
+  --panel:#f5f5f7;
+  --card:#ffffff;
+  --line:#d2d2d7;
+  --line-soft:#e8e8ed;
+  --text:#1d1d1f;
+  --muted:#6e6e73;
+  --dim:#a1a1a6;
+  --accent:#0071e3;
+  --accent-hi:#0077ed;
+  --green:#00a862;
+  --red:#e30000;
+  --gold:#f5a623;
+
+  --ink:#1d1d1f;
+  --ghost:#c7c7cc;
+
+  --sidebar-w:304px;
+  --radius:18px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",
+              "Segoe UI Variable Display","Segoe UI","Helvetica Neue",Helvetica,Arial,sans-serif;
+  color:var(--text);background:var(--bg);overflow:hidden;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;font-synthesis:none;
+  font-feature-settings:"kern" 1,"liga" 1;
+  letter-spacing:-0.01em;
+}
+button{font:inherit;color:inherit;cursor:pointer;letter-spacing:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#c9c9ce;border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#a9a9ae;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+#app{display:flex;height:100vh;width:100vw}
+
+/* ---------------- Sidebar ---------------- */
+#sidebar{
+  width:var(--sidebar-w);flex:0 0 var(--sidebar-w);
+  background:var(--panel);border-right:1px solid var(--line-soft);
+  display:flex;flex-direction:column;height:100%;
+}
+.brand{display:flex;align-items:center;gap:11px;padding:20px 22px 14px}
+.brand-mark{
+  width:32px;height:32px;border-radius:9px;
+  background:linear-gradient(160deg,#2aa3f0,#0062c9);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:600;font-size:17px;letter-spacing:-.02em;
+}
+.brand-name{font-weight:600;font-size:18px;letter-spacing:-.022em}
+.brand-sub{font-size:12px;color:var(--muted);margin-top:1px}
+
+.course-head{padding:0 22px 16px;border-bottom:1px solid var(--line-soft)}
+.pbar{height:6px;border-radius:99px;background:#e2e2e7;margin:4px 0 10px;overflow:hidden}
+.pbar > i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.pstats{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted)}
+.pstats b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+
+#toc{flex:1;overflow-y:auto;padding:4px 0 44px}
+.sec{padding:17px 22px 6px;display:flex;align-items:center;gap:8px}
+.sec-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.sec-name{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.sec-count{margin-left:auto;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.sec-note{padding:0 22px 6px 37px;font-size:11.5px;color:var(--dim);line-height:1.35}
+.lrow{
+  display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  background:none;border:0;padding:7px 22px;font-size:13.5px;color:var(--text);
+  border-left:3px solid transparent;transition:background .12s;
+}
+.lrow:hover{background:#ededf0}
+.lrow.active{background:#e6f0fb;border-left-color:var(--accent);font-weight:500}
+.lnum{
+  flex:0 0 22px;height:22px;border-radius:50%;background:#e2e2e7;color:#8e8e93;
+  display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;
+  font-variant-numeric:tabular-nums;transition:background .2s;
+}
+.lrow.done .lnum{color:#fff}
+.ltitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lmeta{flex:0 0 auto;font-size:10.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.lstars{flex:0 0 auto;font-size:9px;letter-spacing:.5px;color:var(--gold)}
+
+/* ---------------- Main ---------------- */
+#main{flex:1;display:flex;flex-direction:column;min-width:0;height:100%}
+.topbar{
+  height:52px;flex:0 0 52px;display:flex;align-items:center;gap:6px;padding:0 18px;
+  background:rgba(251,251,253,.72);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(0,0,0,.07);position:relative;z-index:10;
+}
+.icon-btn{
+  width:32px;height:32px;border-radius:50%;border:0;background:transparent;
+  display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--muted);
+  transition:background .15s,color .15s;flex:0 0 auto;
+}
+.icon-btn:hover{background:rgba(0,0,0,.06);color:var(--text)}
+.icon-btn.off{opacity:.35}
+.titles{min-width:0;overflow:hidden;padding-left:6px}
+.lesson-label,.lesson-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lesson-label{font-size:11px;color:var(--muted)}
+.lesson-name{font-size:15px;font-weight:600;line-height:1.2;letter-spacing:-.018em}
+.spacer{flex:1}
+
+/* Apple-style segmented control */
+.seg{display:flex;background:rgba(120,120,128,.12);border-radius:9px;padding:2px;flex:0 0 auto}
+.seg button{
+  border:0;background:transparent;border-radius:7px;padding:4px 14px;
+  font-size:12.5px;font-weight:500;color:var(--text);transition:background .18s,box-shadow .18s;
+}
+.seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+/* finish button for endless sessions */
+.finish-btn{
+  border:0;border-radius:980px;background:var(--accent);color:#fff;
+  padding:6px 15px;font-size:12.5px;font-weight:500;display:none;flex:0 0 auto;
+}
+.finish-btn:hover{background:var(--accent-hi)}
+.finish-btn.show{display:block}
+
+/* ---------------- Practice view ---------------- */
+#stage{flex:1;min-height:0;display:flex;flex-direction:column;padding:20px 28px 22px;gap:15px;position:relative}
+
+.stats{display:flex;align-items:center;gap:8px}
+.stat{background:var(--card);border:1px solid var(--line-soft);border-radius:14px;padding:9px 16px;min-width:100px;text-align:center}
+.stat .v{font-size:20px;font-weight:600;line-height:1;letter-spacing:-.022em;font-variant-numeric:tabular-nums}
+.stat .k{font-size:10px;color:var(--muted);letter-spacing:.03em;margin-top:4px;text-transform:uppercase}
+.stat.paused .v{color:var(--dim)}
+.stat.urgent .v{color:var(--red)}
+.lprog{flex:1;height:6px;border-radius:99px;background:#e2e2e7;overflow:hidden;margin-left:8px}
+.lprog > i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .2s linear}
+.lprog.hide{visibility:hidden}
+
+.tip{font-size:13px;color:var(--muted);line-height:1.45;display:flex;align-items:center;gap:8px;margin-top:-3px}
+.tip svg{flex:0 0 auto;opacity:.5}
+
+#typearea{
+  background:var(--card);border:1px solid var(--line-soft);border-radius:var(--radius);
+  padding:34px 44px;overflow:hidden;position:relative;flex:1 1 auto;min-height:170px;display:flex;
+  box-shadow:0 1px 3px rgba(0,0,0,.03);
+}
+#scroller{flex:1;overflow:hidden;position:relative}
+#text{
+  font-size:28px;line-height:1.92;letter-spacing:-.021em;word-spacing:.02em;
+  color:var(--ghost);font-weight:400;max-width:58ch;margin:0 auto;user-select:none;
+  font-feature-settings:"kern" 1,"liga" 1,"calt" 1;
+}
+.para{margin:0 0 .85em}
+.para:last-child{margin-bottom:0}
+.chunk{white-space:nowrap;display:inline}
+
+.ch{position:relative}
+.ch.done{color:var(--ink)}
+.ch.err{color:var(--red)}
+.ch.sp{white-space:normal}
+.ch.cur::before{
+  content:"";position:absolute;left:-1.5px;top:.13em;width:2px;height:1.1em;
+  border-radius:1px;background:var(--accent);animation:blink 1.06s steps(1) infinite;
+}
+.ch.cur.errnow::before{background:var(--red);animation:none}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+#typearea::after{
+  content:"";position:absolute;left:1px;right:1px;bottom:1px;height:54px;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(255,255,255,0),#fff 84%);
+  border-radius:0 0 var(--radius) var(--radius);
+}
+
+#guide{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:12px}
+#hint{text-align:center;pointer-events:none;transition:opacity .3s}
+#hint span{
+  display:inline-block;background:rgba(29,29,31,.9);color:#fff;
+  padding:8px 18px;border-radius:980px;font-size:13px;font-weight:500;
+}
+#hint.hide{opacity:0}
+#hands{display:flex;justify-content:center;gap:44px}
+#hands svg{display:block}
+.fg{fill:#e8e8ed;stroke:#d2d2d7;stroke-width:1.5;transition:fill .12s,stroke .12s}
+.fg.on{fill:var(--accent);stroke:#0062c9}
+.palm{fill:#f0f0f3;stroke:#d2d2d7;stroke-width:1.5}
+.hand-lbl{font-size:9.5px;fill:var(--dim);font-family:inherit;text-anchor:middle}
+
+/* ---------------- Progress view ---------------- */
+#statsView{flex:1;min-height:0;overflow-y:auto;padding:26px 30px 50px;display:none}
+#statsView.show{display:block}
+.sv-h1{font-size:30px;font-weight:600;letter-spacing:-.026em;margin:0 0 3px}
+.sv-sub{color:var(--muted);font-size:14px;margin-bottom:24px}
+.grid{display:grid;gap:14px;margin-bottom:14px}
+.g4{grid-template-columns:repeat(auto-fit,minmax(136px,1fr))}
+.g2{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}
+@media (max-width:1080px){.g2{grid-template-columns:1fr}}
+.pane{background:var(--card);border:1px solid var(--line-soft);border-radius:var(--radius);padding:20px 22px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.pane h3{margin:0 0 2px;font-size:14px;font-weight:600;letter-spacing:-.014em}
+.pane .note{font-size:11.5px;color:var(--dim);margin-bottom:14px}
+.kpi .big{font-size:34px;font-weight:600;letter-spacing:-.03em;line-height:1.05;font-variant-numeric:tabular-nums}
+.kpi .lab{font-size:11.5px;color:var(--muted);margin-top:3px}
+.kpi .sub{font-size:11px;color:var(--dim);margin-top:5px}
+.ringwrap{display:flex;align-items:center;gap:18px}
+.ring-num{font-size:26px;font-weight:600;letter-spacing:-.026em}
+.ring-lab{font-size:11.5px;color:var(--muted)}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.bar .kc{
+  flex:0 0 34px;height:26px;border-radius:7px;background:var(--panel);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;
+}
+.bar .track{flex:1;height:8px;border-radius:99px;background:#eeeef1;overflow:hidden}
+.bar .track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ff9f0a,#ff375f)}
+.bar .n{flex:0 0 30px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px}
+.hist{width:100%;border-collapse:collapse;font-size:12.5px}
+.hist th{text-align:left;font-weight:500;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:0 0 8px}
+.hist td{padding:7px 0;border-top:1px solid var(--line-soft);font-variant-numeric:tabular-nums}
+.hist td:first-child{font-variant-numeric:normal}
+.hist td.r{text-align:right}
+.empty{color:var(--dim);font-size:13px;padding:22px 0;text-align:center;line-height:1.6}
+.chart-svg{width:100%;height:auto;display:block;overflow:visible}
+
+/* ---------------- Results ---------------- */
+#overlay{
+  position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:30;
+  background:rgba(251,251,253,.72);
+  backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);
+}
+#overlay.show{display:flex;animation:fade .25s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.card{
+  background:var(--card);border-radius:26px;padding:32px 38px;width:min(520px,92%);text-align:center;
+  box-shadow:0 24px 60px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.05);
+  max-height:92%;overflow-y:auto;
+}
+.card h2{margin:0 0 4px;font-size:26px;font-weight:600;letter-spacing:-.024em}
+.card .sub{color:var(--muted);font-size:13.5px;margin-bottom:16px;line-height:1.45}
+.stars{font-size:34px;letter-spacing:8px;color:#e2e2e7;margin:4px 0 16px}
+.stars i{font-style:normal;display:inline-block;transform:scale(.5);opacity:0;
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.stars i.on{color:var(--gold);transform:scale(1);opacity:1}
+.rgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}
+.rgrid div{background:var(--panel);border-radius:14px;padding:12px 6px}
+.rgrid b{display:block;font-size:20px;font-weight:600;letter-spacing:-.022em;font-variant-numeric:tabular-nums}
+.rgrid span{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.badge{display:inline-block;background:#e7f7ee;color:#00794a;border-radius:980px;
+  padding:4px 13px;font-size:11.5px;font-weight:600;margin-bottom:14px}
+.trouble{font-size:12.5px;color:var(--muted);margin-bottom:18px}
+.trouble kbd{display:inline-block;background:var(--panel);border:1px solid var(--line);
+  border-radius:6px;padding:1px 7px;margin:0 2px;font-family:inherit;font-size:12px;color:var(--text);font-weight:600}
+.btns{display:flex;gap:10px;justify-content:center}
+.btn{border:0;border-radius:980px;padding:11px 24px;font-weight:500;font-size:14.5px;
+  background:var(--panel);color:var(--text);transition:background .15s}
+.btn:hover{background:#e8e8ed}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-hi)}
+.kbdhint{margin-top:14px;font-size:11.5px;color:var(--dim)}
+
+#burger{display:none}
+@media (max-width:940px){
+  :root{--sidebar-w:284px}
+  #sidebar{position:fixed;left:0;top:0;bottom:0;z-index:40;transform:translateX(-100%);
+    transition:transform .3s cubic-bezier(.4,0,.2,1)}
+  #sidebar.open{transform:none;box-shadow:0 0 50px rgba(0,0,0,.18)}
+  #burger{display:flex}
+  #text{font-size:21px;line-height:1.85;max-width:none}
+  #typearea{padding:22px 24px}
+  #stage{padding:14px 16px 16px}
+  .stat{min-width:68px;padding:7px 9px}
+  .stat .v{font-size:17px}
+  .tip{display:none}
+  .rgrid{grid-template-columns:repeat(2,1fr)}
+  #statsView{padding:18px 16px 40px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">T</div>
+      <div>
+        <div class="brand-name">TypingLab</div>
+        <div class="brand-sub">Learn to touch type</div>
+      </div>
+    </div>
+
+    <div class="course-head">
+      <div class="pbar"><i id="courseBar"></i></div>
+      <div class="pstats">
+        <span><b id="pPct">0%</b> complete</span>
+        <span><b id="pStars">0</b> stars</span>
+        <span><b id="pBest">0</b> best wpm</span>
+        <span><b id="pTime">0m</b> practised</span>
+      </div>
+    </div>
+
+    <nav id="toc"></nav>
+  </aside>
+
+  <div id="main">
+    <div class="topbar">
+      <button class="icon-btn" id="burger" title="Lessons">☰</button>
+      <button class="icon-btn" id="prevBtn" title="Previous lesson">‹</button>
+      <button class="icon-btn" id="nextBtn" title="Next lesson">›</button>
+      <div class="titles">
+        <div class="lesson-label" id="lessonLabel">Lesson 1</div>
+        <div class="lesson-name" id="lessonName">Keys f &amp; j</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="finish-btn" id="finishBtn">Finish session</button>
+      <div class="seg">
+        <button id="tabPractice" class="on">Practice</button>
+        <button id="tabStats">Progress</button>
+      </div>
+      <button class="icon-btn" id="restartBtn" title="Restart (Esc)">↻</button>
+      <button class="icon-btn" id="handBtn" title="Hand guide">✋</button>
+    </div>
+
+    <!-- ===== Practice ===== -->
+    <div id="stage">
+      <div class="stats">
+        <div class="stat"><div class="v" id="sWpm">0</div><div class="k">Speed wpm</div></div>
+        <div class="stat"><div class="v" id="sAcc">100%</div><div class="k">Accuracy</div></div>
+        <div class="stat" id="timeStat"><div class="v" id="sTime">0:00</div><div class="k" id="timeLab">Time</div></div>
+        <div class="stat"><div class="v" id="sLeft">0</div><div class="k" id="leftLab">Words left</div></div>
+        <div class="lprog" id="lprog"><i id="lessonBar"></i></div>
+      </div>
+
+      <div class="tip">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1a5 5 0 0 0-3 9v2a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2a5 5 0 0 0-3-9zM6.5 14.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
+        </svg>
+        <span id="tipText"></span>
+      </div>
+
+      <div id="typearea"><div id="scroller"><div id="text"></div></div></div>
+
+      <div id="guide">
+        <div id="hint"><span>Place your fingers on the home row and start typing</span></div>
+        <div id="hands"></div>
+      </div>
+
+      <div id="overlay">
+        <div class="card">
+          <h2 id="rTitle">Lesson complete</h2>
+          <div class="sub" id="rSub"></div>
+          <div class="stars" id="rStars"><i>★</i><i>★</i><i>★</i></div>
+          <div id="rBadge" class="badge" style="display:none">New personal best</div>
+          <div class="rgrid">
+            <div><b id="rWpm">0</b><span>wpm</span></div>
+            <div><b id="rAcc">0%</b><span>accuracy</span></div>
+            <div><b id="rErr">0</b><span>errors</span></div>
+            <div><b id="rWords">0</b><span>words</span></div>
+          </div>
+          <div class="trouble" id="rTrouble"></div>
+          <div class="btns">
+            <button class="btn" id="rRepeat">Repeat</button>
+            <button class="btn primary" id="rNext">Next lesson</button>
+          </div>
+          <div class="kbdhint">Press <b>Enter</b> to continue &nbsp;·&nbsp; <b>R</b> to repeat</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Progress ===== -->
+    <div id="statsView"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   1. FINGER MAP — drives the hand guide (there is no on-screen keyboard)
+   ===================================================================== */
+const K = (lo, up, f) => ({lo, up, f});
+const ROWS = [
+  [ K('`','~','lp'),K('1','!','lp'),K('2','@','lr'),K('3','#','lm'),K('4','$','li'),K('5','%','li'),
+    K('6','^','ri'),K('7','&','ri'),K('8','*','rm'),K('9','(','rr'),K('0',')','rp'),K('-','_','rp'),K('=','+','rp') ],
+  [ K('q','Q','lp'),K('w','W','lr'),K('e','E','lm'),K('r','R','li'),K('t','T','li'),
+    K('y','Y','ri'),K('u','U','ri'),K('i','I','rm'),K('o','O','rr'),K('p','P','rp'),
+    K('[','{','rp'),K(']','}','rp'),K('\\','|','rp') ],
+  [ K('a','A','lp'),K('s','S','lr'),K('d','D','lm'),K('f','F','li'),K('g','G','li'),
+    K('h','H','ri'),K('j','J','ri'),K('k','K','rm'),K('l','L','rr'),K(';',':','rp'),K("'",'"','rp') ],
+  [ K('z','Z','lp'),K('x','X','lr'),K('c','C','lm'),K('v','V','li'),K('b','B','li'),
+    K('n','N','ri'),K('m','M','ri'),K(',','<','rm'),K('.','>','rr'),K('/','?','rp') ]
+];
+const CHARMAP = {};
+ROWS.forEach(r => r.forEach(k => {
+  CHARMAP[k.lo] = {shift:false, f:k.f};
+  if (k.up && k.up !== k.lo) CHARMAP[k.up] = {shift:true, f:k.f};
+}));
+CHARMAP[' '] = {shift:false, f:'th'};
+
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* =====================================================================
+   2. TEXT GENERATORS
+   ===================================================================== */
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+  let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function drill(chars, groups, seed, minLen, maxLen){
+  const r = rng(seed), out = [];
+  minLen = minLen || 3; maxLen = maxLen || 4;
+  for (let g = 0; g < groups; g++){
+    const n = minLen + Math.floor(r() * (maxLen - minLen + 1));
+    let s = '';
+    for (let i = 0; i < n; i++) s += chars[Math.floor(r() * chars.length)];
+    out.push(s);
+  }
+  return out.join(' ');
+}
+function pairDrill(a, b, seed){
+  const r = rng(seed);
+  const p = [a+a+a, b+b+b, a+b+a, b+a+b, a+a+b, b+b+a, a+b+b, b+a+a];
+  const out = [];
+  for (let i = 0; i < 26; i++) out.push(p[Math.floor(r() * p.length)]);
+  return out.join(' ');
+}
+function words(list, count, seed){
+  const r = rng(seed), out = [];
+  for (let i = 0; i < count; i++) out.push(list[Math.floor(r() * list.length)]);
+  return out.join(' ');
+}
+
+const W_HOME = ['dad','sad','fall','ask','lad','glad','half','flask','salad','gash','shall','flash','ad','all','has'];
+const W_TOP  = ['type','quiet','power','write','tower','output','equip','rope','pretty','report','triple','quote','worry','upper','their'];
+const W_BOT  = ['zone','maze','can','box','next','bench','cave','number','common','mixed','vacuum','ribbon','combine','vanish','cabin'];
+const W_ALL  = ['about','again','because','before','build','change','close','course','during','enough','family','follow','ground','happen','important','little','number','people','picture','question','really','second','should','through','together','usually','weather','without','yellow','young'];
+const W_FAST = ['the','and','for','you','that','with','have','this','from','they','been','were','said','each','which','their','will','other','about','many','then','them','these','some','would','make','like','into','time','look','more','write','could','people','than','first','water','call','who','now','find','long','down','day','did','get','come','made'];
+const W_CODE = ['const','let','function','return','import','export','class','value','array','object','string','number','index','result','config','render','update','handle','client','server'];
+
+const SENTS = [
+  'The quick brown fox jumps over the lazy dog.',
+  'Practice a little every day and your hands will remember.',
+  'Keep your wrists straight and your shoulders relaxed.',
+  'Speed follows accuracy, so slow down and hit the right keys.',
+  'Look at the screen, not at your fingers.',
+  'A steady rhythm beats a fast burst every single time.',
+  'Every good typist started by pressing one key at a time.',
+  'Rest your fingers on the home row between words.'
+];
+const SENTS2 = [
+  'She packed five dozen jugs of liquid wax before moving to the quiet bay.',
+  'The old bridge groaned, but it held, and we crossed without saying much.',
+  'Bring the maps, a torch, and whatever is left of the bread.',
+  'He counted forty-two birds on the wire and then lost his place.',
+  'Nobody expected the river to rise that quickly in November.',
+  'We agreed to meet at six, though neither of us owned a watch.'
+];
+
+/* =====================================================================
+   3. PASSAGES — original prose on a deliberate mix of subjects.
+      Each entry is an array of paragraphs. These also feed endless mode.
+   ===================================================================== */
+const PASSAGE = {};
+
+PASSAGE.attention = [
+"Typing well is less about speed than about attention. When you sit down to practise, the first thing to settle is not your hands but your mind. Choose a length of time you can honestly give, and then give it fully. A quiet twenty minutes will teach you more than an hour spent glancing at other windows. What remains is a simple loop: read a word, type a word, notice what happened. That loop is the whole craft.",
+"Beginners often try to skip the noticing. They race ahead, collect errors, and then wonder why the same mistakes return the next day. The noticing is where learning lives. When a finger reaches for the wrong key, pause for a breath, find the right key without looking, and carry on. You are not trying to be fast yet. You are drawing a small map for your hands, and maps are drawn slowly.",
+"Sit so that your feet rest flat and your back is supported. Let your wrists float rather than pressing into the desk. Your elbows should hang near your sides, not out like wings. If you find your shoulders climbing towards your ears, stop for a moment and let them drop. Comfort is not a luxury here; it is the condition that makes long practice possible.",
+"Look at the screen, never at your hands. This will feel wrong for the first several days, and then it will feel obvious. The moment you glance down, you hand the work back to your eyes, and your fingers stop learning. Trust them. They are better students than you expect."
+];
+PASSAGE.rhythm = [
+"Speed is a result, not a goal. It arrives on its own once accuracy stops being a struggle, and it arrives sooner for people who refuse to rush. The useful measure in early practice is not words per minute but the number of keys you strike correctly on the first attempt. Chase that number and the other one follows.",
+"Try to hold a steady rhythm. Most new typists move in bursts: four quick letters, a pause, three more, a longer pause while they hunt for a key. The burst feels fast and the pauses eat the gains. A slower, even pace almost always produces a better result over a full page. Think of it as walking rather than sprinting between benches.",
+"Some letters will resist you. For most people the outer fingers are the weakest, so the letters under the little finger cause the most trouble. Do not avoid them. Spend a few extra minutes on the words that contain them, and give the weak fingers their own short drills. Strength here is not muscle; it is coordination, and coordination answers to repetition.",
+"Over weeks, the shape of your practice matters more than the length of any single session. Fifteen honest minutes a day will outperform three hours on a Sunday. The hands consolidate what they learn during rest, so spacing your work is not laziness. It is part of the method."
+];
+PASSAGE.endurance = [
+"A long session asks different things of you than a short one. In the first ten minutes you are sharp and the words come easily. Somewhere after that, attention begins to wander, and the errors that appear are not the same errors you made at the start. They are errors of drift. You stop reading ahead, your posture softens, and your fingers begin to guess.",
+"Learning to notice that moment is one of the most valuable skills a typist can build. When you feel it arrive, do not push harder. Slow down by a small amount and let accuracy come back. If you force your way through, you will spend the rest of the session correcting yourself, and you will finish more tired than the work deserved.",
+"Build small habits for the long stretch. Rest your fingers lightly on the home row between words rather than hovering above the board. Let your eyes travel a few words ahead of your hands, the way a musician reads slightly ahead of the note being played. Breathe normally; people hold their breath when they concentrate and rarely notice it.",
+"End the session before you are exhausted. Finishing while you still feel capable leaves you willing to come back tomorrow, and coming back tomorrow is the only thing that reliably works. Consistency is unglamorous, but it separates a person who types from a person who has to think about typing."
+];
+PASSAGE.layout = [
+"The arrangement of letters on a modern keyboard is older than almost every machine it now appears on. It was designed for a mechanical world of levers and ribbons, and it has survived every attempt to replace it, not because it is perfect but because millions of hands already know it. The value of a skill often lies less in the elegance of the system than in the depth of the practice behind it.",
+"What you are building, then, is a kind of portable memory. It lives below conscious thought. Ask a fluent typist which finger presses a particular letter and they will often have to mime the motion before they can answer. They know it in their hands, not in their words. That is the destination.",
+"Give the process room. There will be a week where progress seems to stop entirely, and it will feel like proof that you have reached your limit. It almost never is. Plateaus are usually the surface of a change happening underneath, and they break without warning if you keep showing up. Measure yourself in months rather than days.",
+"When you finally stop thinking about the keys, you will find that writing itself becomes easier, because the distance between having a thought and seeing it on the screen has shrunk to almost nothing. That is the real reward: not the number on the screen, but the silence between the idea and the sentence."
+];
+PASSAGE.ocean = [
+"Most of the ocean has never been seen by anyone. Sunlight reaches only the first two hundred metres or so, and below that the water turns from blue to a colour that has no good name, and then to black. The animals that live there have arranged themselves around this darkness. Some make their own light, in blue and green, because those colours travel furthest through water. Others have given up on eyes entirely and read the world through pressure and scent instead.",
+"Pressure at the deepest point of the sea is more than a thousand times what you feel standing on a beach. For a long time people assumed nothing could survive it. Then we built machines that could go and look, and found crabs, worms, fish, and thick mats of bacteria feeding on chemicals that leak from cracks in the sea floor. None of it needs the sun. It is the only large habitat on the planet running on something else entirely.",
+"What is stranger still is how little of it we have mapped. We have better maps of the surface of Mars than of our own sea bed, because radar crosses space easily and does not cross water at all. Mapping the ocean floor means sending a ship over every square kilometre and listening to echoes, one slow line at a time.",
+"So the deep stays mostly unvisited, not because it is far away, but because it is difficult, and because it is hard to stay curious about a place you cannot see."
+];
+PASSAGE.bread = [
+"Bread is made of four things, and three of them are almost free. Flour, water, salt, and time. The fourth is the one most people skip. A dough that is allowed to sit for a day tastes nothing like a dough rushed through in ninety minutes, and the difference has very little to do with skill.",
+"What happens during that wait is mostly chemistry, and it is not complicated. Yeasts and bacteria, already living in the flour and the air, begin to eat the sugars they find. They give off gas, which lifts the dough, and acids, which give it flavour and keep it from spoiling. At the same time the flour is quietly absorbing water and building long elastic strands, which is why a rested dough feels smooth and a fresh one feels stiff and torn.",
+"None of this requires attention. It requires absence. The most common mistake a new baker makes is handling the dough too much, checking it, folding it, worrying at it, when the useful thing to do is close the lid and go somewhere else.",
+"There is a lesson in bread that applies well beyond the kitchen. Some processes are improved by effort and some are only improved by patience, and the hard part is telling which is which. A loaf will not rise faster because you want it to."
+];
+PASSAGE.sky = [
+"Two thirds of people alive today cannot see the Milky Way from where they live. It has not gone anywhere. The stars are exactly as bright as they were a century ago; the ground beneath them has simply become brighter. Street lamps, car parks, signs and windows throw light upwards, it scatters off dust and water in the air, and the sky above a city glows a dull orange that drowns everything fainter than the moon.",
+"This is one of the few kinds of pollution that vanishes the instant you stop producing it. There is nothing to clean up and nothing to remove. Villages that have switched to shielded lamps, which point light down at the pavement where it is actually wanted, have got their stars back within a single night.",
+"It matters to more than astronomers. Moths navigate by moonlight and spiral into lamps until they are exhausted. Newly hatched turtles crawl towards the brightest horizon, which for millions of years meant the sea and now often means a road. Our own sleep is governed by a chemical the body only produces properly in darkness.",
+"The odd thing is that better lighting is usually cheaper. A lamp that throws half its light into the sky is wasting half of what it costs to run. Pointing it downwards saves money and gives back a view that every generation before ours took entirely for granted."
+];
+PASSAGE.library = [
+"A library is one of the few remaining places you can enter without being expected to buy something. That is not a small thing. Nearly every other indoor space in a town now asks for a transaction before it will let you sit down, and a building with chairs, warmth, a toilet and no till is stranger and more valuable than it looks.",
+"The books are the obvious part, but they are not really why libraries survive. People come to use a computer because they do not own one, to fill in a form that only exists online, to sit somewhere quiet before an interview, to let a child make noise around other children, or simply to be indoors on a cold afternoon without explaining themselves to anyone.",
+"Librarians know this. The job drifted long ago from finding books to helping people through the small administrative walls of modern life. They spend a surprising share of their time on printers, passwords and government websites.",
+"A library works because it is paid for collectively and used individually, and because nobody has to prove they deserve it before walking in. Systems built that way are rare, and are usually the first to be called inefficient, which is true only if you measure the wrong thing. The value of a library is not in what is borrowed. It is in the fact that the door is open."
+];
+PASSAGE.rain = [
+"A raindrop is not shaped like a teardrop. Small ones are almost perfectly round, held that way by surface tension, and larger ones flatten as they fall until they look more like a bun than a tear. Past a certain size they cannot hold together at all and burst into smaller drops on the way down, which is why rain never arrives as single enormous blobs.",
+"The smell of rain has a cause. Before a storm, plants and soil release oils that have been building up during dry weather, and the first drops throw them into the air along with a compound made by bacteria in the ground. What you are smelling is not the water. It is the soil finally being allowed to exhale.",
+"Rain also carries sound in a way that few other things do. A steady fall produces noise across a very wide range of frequencies at once, with no pattern for the brain to lock onto. That is why it works so well as a background: there is nothing in it to follow, so attention slides off it and settles somewhere else.",
+"Every drop that lands has been somewhere else. Water evaporating from an ocean can travel for a week and cross a continent before falling on a roof. The rain on your window is not new. It is very old water, briefly passing through."
+];
+PASSAGE.trains = [
+"There is a particular kind of thinking that only happens on a train. You are moving, but you are not steering. Nothing is being asked of you for the next few hours, and the window supplies just enough motion to occupy the restless part of the mind while the rest of it wanders.",
+"Part of it is the pace. A train is fast enough to feel like progress and slow enough to show you the country it is crossing, including the parts nobody arranges for visitors: back gardens, sidings, allotments, the rear walls of factories. A motorway shows you a corridor. A railway shows you the seams.",
+"Railways also quietly invented the time we use. Before them, every town kept its own clock, set by the local sun, and a place fifty miles west might run twenty minutes behind its neighbour. This was harmless until trains made it possible to arrive somewhere before you had, according to the timetable, left. Standard time was created not for science but so that a printed schedule could be trusted.",
+"That is often how infrastructure works. It solves an ordinary problem in an ordinary way, and then the solution quietly becomes the ground everyone else stands on. Almost nobody thinks of the railway when they set an alarm."
+];
+PASSAGE.bees = [
+"A honeybee returning to the hive with news of flowers does something remarkable: she describes a location to her sisters using a dance. The angle of her movement relative to vertical tells them the direction of the food relative to the sun. The length of the straight run tells them how far. Other bees follow along behind her, learning the route by touch in complete darkness, then fly out and find it.",
+"This is one of very few examples of an animal communicating an abstract position rather than simply reacting to something present. The flowers are not visible, not smellable, and not nearby. They exist only as information, passed from one insect to another in a code that took researchers decades to read.",
+"The colony as a whole behaves less like a group of animals and more like a single organism making decisions. When a swarm needs a new home, scouts inspect candidate sites and come back dancing with an enthusiasm proportional to how good the site is. Support gathers around the better options and drains from the worse ones, and eventually the swarm commits. Nobody is in charge.",
+"It is a useful reminder that intelligence does not always live in one place. Sometimes it is spread thinly across thousands of very simple participants, none of whom understands the problem being solved."
+];
+PASSAGE.mountains = [
+"Walking uphill is mostly a problem of arithmetic that your body solves without telling you. Every step lifts your whole weight a small distance, and the cost adds up in a way that flat ground never suggests. A gentle slope of one in ten roughly doubles the effort of walking, which is why a path that looks like nothing on a map can undo a confident afternoon.",
+"Experienced walkers deal with this by changing pace rather than by pushing. They shorten the stride, slow the rhythm, and keep it absolutely steady, including through the sections that feel easy. The aim is to find the speed you could hold for four hours and then refuse to exceed it, even at the start, when you feel strong and the summit looks close.",
+"Weather on high ground is a separate discipline. Temperature falls by roughly six degrees for every thousand metres you gain, wind accelerates as it is forced over ridges, and cloud can arrive in minutes and remove every landmark you were navigating by. None of this is dangerous to someone who expected it. All of it is dangerous to someone who did not.",
+"The reward is not really the view, which is often absent. It is the unusual clarity that comes from a day with exactly one objective, no notifications, and a problem simple enough to be solved by continuing to put one foot down."
+];
+PASSAGE.clocks = [
+"For most of history nobody needed to know the time to the minute. The sun was accurate enough for planting, trading and praying, and every settlement kept its own version of noon. Clocks were rare, expensive, and usually wrong, and it did not matter much, because almost nothing anyone did required two distant places to agree.",
+"The pendulum changed that. Once a swinging weight was used to regulate a mechanism, clocks became roughly a hundred times more accurate almost overnight, and for the first time a machine could keep better time than the sky. What followed was not just better punctuality but a different relationship with the day. Work could be measured, sold and compared in units.",
+"The hardest problem was carrying accurate time to sea. A ship needed to know the time at its home port in order to work out how far east or west it had travelled, and no pendulum survives the roll of a deck. Solving it took decades of patient mechanical work, and the eventual answer was a spring-driven watch built to ignore motion and temperature alike.",
+"We now keep time with vibrating atoms, accurate to a fraction of a second across millions of years, and the whole apparatus is invisible. Your phone quietly asks a distant clock what time it is, several times a day, and adjusts itself without mentioning it."
+];
+PASSAGE.glass = [
+"Glass is a strange material to have become ordinary. It is neither quite a solid nor quite a liquid but something frozen in between, cooled too quickly for its atoms to arrange themselves into a proper crystal. That accident of structure is exactly why it is transparent: there is no regular lattice to scatter light, so light passes through as though nothing were there.",
+"For centuries it was a luxury, and windows were small because large flat sheets were nearly impossible to make. Glass was blown into a cylinder, cut open and flattened, and it came out rippled and uneven. The modern method is disarmingly simple: pour molten glass onto a bath of molten tin. The two do not mix, the glass spreads out perfectly flat under its own weight, and it cools into a sheet with no need for polishing at all.",
+"Almost everything about modern life rests quietly on it. Lenses made telescopes and microscopes possible, which between them revealed both the scale of the universe and the existence of cells. Fibres of very pure glass now carry nearly all of the world's information as pulses of light.",
+"It is worth remembering when you look through a window that you are using one of the more remarkable substances ever made, and using it mainly to check the weather."
+];
+PASSAGE.sleep = [
+"Sleep looks like an absence of activity and is nothing of the kind. The brain during the night is busy in ways it never is during the day, running maintenance that cannot be done while you are awake. Connections built during the day are sorted, some strengthened and many quietly discarded, and the day's experiences are replayed at speed and filed somewhere more permanent.",
+"This is why practice followed by sleep produces better results than practice alone. A skill rehearsed in the evening is measurably better the next morning without any further work, which feels like cheating but is simply how the system was built. The consolidation happens whether or not you understand it.",
+"The night is not uniform either. It runs in cycles of roughly ninety minutes, moving between deep sleep, which dominates the early hours, and the lighter dreaming stages, which take up more of the time towards morning. Cutting a night short does not remove an equal slice of each. It removes mostly the later stages, which is why a short night affects mood and memory more than it affects tiredness.",
+"Nothing else in the day gives so much back for so little effort. It costs nothing, requires no equipment, and improves almost every measurable thing about a person, which may be why it is so consistently the first thing anyone sacrifices."
+];
+PASSAGE.rivers = [
+"No river runs in a straight line for long. Even across a perfectly flat plain, a stream will begin to wander, because any small bend sends water faster around the outside of the curve and slower around the inside. The fast side erodes, the slow side deposits, and the bend deepens itself. Given time, the loops grow so extreme that the river cuts across its own neck and abandons the curve entirely, leaving a still crescent of water behind.",
+"Rivers also sort what they carry with surprising precision. Fast water moves boulders; slower water drops them and carries only gravel; slower still, and it holds nothing but silt. Read a riverbank carefully and you can tell how quickly the water was moving on the day each layer was laid down, sometimes thousands of years ago.",
+"Almost every early city sits on one, and not for the water alone. A river was the cheapest road available for most of human history, and a place where two of them met was a place where goods had to be unloaded, which is another way of saying a place where a market would appear.",
+"They are also impatient. A river will reclaim its floodplain eventually, whatever has been built there, because the floodplain is simply the part of the river that is not currently wet."
+];
+
+const PKEYS = Object.keys(PASSAGE);
+const P = (...keys) => keys.map(k => PASSAGE[k].join('\n')).join('\n');
+
+/* ---- endless supply: every paragraph in the corpus, reshuffled forever ---- */
+const ALL_PARAS = [];
+PKEYS.forEach(k => PASSAGE[k].forEach(p => ALL_PARAS.push(p)));
+
+function makeSupply(){
+  let bag = [], r = rng((Date.now() & 0xffff) | 1);
+  function refill(){
+    bag = ALL_PARAS.slice();
+    for (let i = bag.length - 1; i > 0; i--){          // Fisher-Yates
+      const j = Math.floor(r() * (i + 1));
+      const t = bag[i]; bag[i] = bag[j]; bag[j] = t;
+    }
+  }
+  refill();
+  return function next(){
+    if (!bag.length) refill();
+    return bag.pop();
+  };
+}
+
+/* =====================================================================
+   4. COURSE
+   ===================================================================== */
+let LID = 0;
+const L = (title, text, goal, tip) => ({id:++LID, title, text, goal:goal || 18, tip});
+// endless lesson: text is generated forever; seconds = countdown, or null for open-ended
+const E = (title, seconds, goal, tip) =>
+  ({id:++LID, title, text:'', endless:true, seconds, goal:goal || 30, tip});
+
+const COURSE = [
+{ name:'Home Row', colour:'#0071e3', note:'The eight keys your fingers live on',
+  tip:'Rest your fingers on a s d f and j k l ; — and return to them after every reach.',
+  lessons:[
+  L('Keys f & j',        pairDrill('f','j',101), 12, 'Left index on f, right index on j. Both keys have a small ridge you can feel.'),
+  L('Space Bar',         'ff jj ff jj fff jjj ffj jjf fj jf ffj jff jfj fjf ff jj fj jf', 14, 'Use either thumb for the space bar — most people favour one and keep it.'),
+  L('Review: f & j',     drill(['f','j'], 26, 102), 14),
+  L('Keys d & k',        pairDrill('d','k',103), 12, 'Middle fingers. Keep the index fingers resting on f and j while you type.'),
+  L('Review: d & k',     drill(['d','k'], 26, 104), 14),
+  L('Practice: fdjk',    drill(['f','d','j','k'], 26, 105), 15),
+  L('Keys s & l',        pairDrill('s','l',106), 12, 'Ring fingers. These are weaker than the others, so take them slowly.'),
+  L('Review: s & l',     drill(['s','l'], 26, 107), 14),
+  L('Practice: sdfjkl',  drill(['s','d','f','j','k','l'], 26, 108), 15),
+  L('Keys a & ;',        pairDrill('a',';',109), 12, 'Little fingers. Move only the finger — the whole hand should stay put.'),
+  L('Review: a & ;',     drill(['a',';'], 26, 110), 14),
+  L('First 8 Keys',      drill(['a','s','d','f','j','k','l',';'], 28, 111), 16),
+  L('Keys g & h',        pairDrill('g','h',112), 12, 'Stretch the index fingers inwards for g and h, then bring them straight back.'),
+  L('Review: g & h',     drill(['g','h','f','j'], 26, 113), 14),
+  L('Home Row Review',   drill(['a','s','d','f','g','h','j','k','l',';'], 28, 114), 17),
+  L('Home Row Words',    words(W_HOME, 24, 115), 18)
+]},
+{ name:'Top Row', colour:'#5856d6', note:'Reach up without leaving home',
+  tip:'Reach up with the finger that owns the home-row key below, then come straight back down.',
+  lessons:[
+  L('Keys r & u',        pairDrill('r','u',201), 13, 'r is index-finger-up from f. u is index-finger-up from j.'),
+  L('Review: r & u',     drill(['r','u','f','j'], 26, 202), 15),
+  L('Keys e & i',        pairDrill('e','i',203), 13, 'Middle fingers reach up from d and k.'),
+  L('Review: e & i',     drill(['e','i','d','k'], 26, 204), 15),
+  L('Review: Home + ruei', drill(['r','u','e','i','a','s','d','f','j','k','l'], 28, 205), 17),
+  L('Keys w & o',        pairDrill('w','o',206), 13, 'Ring fingers reach up from s and l.'),
+  L('Review: w & o',     drill(['w','o','s','l'], 26, 207), 15),
+  L('Keys q & y',        pairDrill('q','y',208), 13, 'q is a little-finger stretch; y is a long reach for the right index.'),
+  L('Keys p & t',        pairDrill('p','t',209), 13, 'p belongs to the right little finger, t to the left index.'),
+  L('Top Row Review',    drill(['q','w','e','r','t','y','u','i','o','p'], 28, 210), 18),
+  L('Home + Top Words',  words(W_TOP, 24, 211), 20)
+]},
+{ name:'Bottom Row', colour:'#af52de', note:'The last reach down',
+  tip:'Curl the finger down without moving your wrist. The hand itself should stay still.',
+  lessons:[
+  L('Keys v & m',        pairDrill('v','m',301), 13, 'Index fingers curl down and slightly inwards.'),
+  L('Review: v & m',     drill(['v','m','f','j'], 26, 302), 15),
+  L('Keys c & ,',        pairDrill('c',',',303), 13, 'Middle fingers. The comma is typed with the right middle finger.'),
+  L('Keys x & .',        pairDrill('x','.',304), 13, 'Ring fingers. The full stop belongs to the right ring finger.'),
+  L('Keys z & /',        pairDrill('z','/',305), 13, 'Little fingers — the longest reach on the board.'),
+  L('Keys b & n',        pairDrill('b','n',306), 13, 'Both are index-finger stretches towards the middle.'),
+  L('Bottom Row Review', drill(['z','x','c','v','b','n','m',',','.','/'], 28, 307), 18),
+  L('Bottom Row Words',  words(W_BOT, 24, 308), 20)
+]},
+{ name:'Capitals & Shift', colour:'#ff2d55', note:'Two hands, always',
+  tip:'Hold shift with the hand that is NOT typing the letter. Never with the same hand.',
+  lessons:[
+  L('Shift Key Intro',   'Ff Jj Ff Jj FF JJ Fj Jf Ff Jj FJ JF Fj Jf FF JJ Ff Jj', 14, 'For F, hold the RIGHT shift. For J, hold the LEFT shift.'),
+  L('Capitals: D & K',   'Dd Kk Dd Kk DD KK Dk Kd Dd Kk DK KD Dk Kd DD KK Dd Kk', 14),
+  L('Capitals: S & L',   'Ss Ll Ss Ll SS LL Sl Ls Ss Ll SL LS Sl Ls SS LL Ss Ll', 14),
+  L('Capitals: A & Q',   'Aa Zz Aa Qq Aa Pp Aa Zz Qq Pp Aa Zz Aa Qq Pp Zz Aa Qq', 14),
+  L('Names & Places',    'Anna Ben Cairo Delhi Emma Ford Grace Hugo India Jack Kelly Lima Mona Nora Oslo Peru Quinn Rosa Sam Tokyo', 20),
+  L('Capital Sentences', 'The Sun Rose Over Green Hills. My Friend Rita Left Early. Every Small Step Counts Today.', 22),
+  L('Mixed Case Words',  'iPhone MacBook eBook JavaScript McDonald OConnor DeVito LaCroix MacKay OBrien iPad AirPods', 20)
+]},
+{ name:'Numbers & Symbols', colour:'#ff9500', note:'The top row of digits',
+  tip:'Keep your index fingers anchored near f and j while the others reach up.',
+  lessons:[
+  L('Keys 4 & 7',        pairDrill('4','7',401), 12, 'Index fingers reach up two rows. Look at the screen, not the numbers.'),
+  L('Keys 3 & 8',        pairDrill('3','8',402), 12),
+  L('Keys 2 & 9',        pairDrill('2','9',403), 12),
+  L('Keys 1 & 0',        pairDrill('1','0',404), 12),
+  L('Keys 5 & 6',        pairDrill('5','6',405), 12, 'The longest reaches on the number row — both taken by the index fingers.'),
+  L('Number Review',     drill(['1','2','3','4','5','6','7','8','9','0'], 26, 406), 16),
+  L('Dates & Amounts',   '12 March 2019 was 47 degrees. Add 3.5 and 12.75 to get 16.25. Call 020 7946 0958 before 9.30 on 14 June 2024.', 18),
+  L('Symbols',           ", . ; ' - = / , . ; ' - = / ? ! : \" ? ! : \" , . ; ' - =", 14)
+]},
+{ name:'Punctuation', colour:'#ffcc00', note:'Commas, stops and the shifted marks',
+  tip:'Most punctuation lives under the right hand. Use the left shift to reach the shifted ones.',
+  lessons:[
+  L('Comma & Full Stop', 'one, two. three, four. five, six. seven, eight. nine, ten. left, right. up, down. in, out.', 20),
+  L('Question & Excl.',  'Who? What? When? Why? How? Stop! Wait! Look! Really? Are you sure? Not again! Is it far?', 20, 'Both need shift — hold it with your LEFT little finger.'),
+  L('Apostrophes',       "don't can't won't it's isn't wasn't they're you're we've I'll he'd she'd that's there's what's", 22),
+  L('Quotation Marks',   'She said "yes" and left. He called it "a small problem". The sign read "closed until Monday".', 20),
+  L('Colons & Semis',    'Bring these: bread, milk, salt. It rained; we stayed in. Note: the door sticks; push hard.', 20),
+  L('Hyphens & Dashes',  'well-known part-time state-of-the-art twenty-four self-taught long-term door-to-door up-to-date', 20),
+  L('Punctuation Mix',   SENTS2.join(' '), 24)
+]},
+{ name:'Common Patterns', colour:'#34c759', note:'The letter pairs English is built from',
+  tip:'Learn these as single movements, not as separate letters. They appear constantly.',
+  lessons:[
+  L('Pairs: th he in er', drill(['th','he','in','er'], 26, 601, 1, 2), 22, 'These four pairs make up a large share of all English text.'),
+  L('Pairs: an re on at', drill(['an','re','on','at'], 26, 602, 1, 2), 22),
+  L('Pairs: ed nd ha ou', drill(['ed','nd','ha','ou'], 26, 603, 1, 2), 22),
+  L('Triples: the and',   drill(['the','and','ing','ion','ent','for'], 24, 604, 1, 2), 24),
+  L('Endings',            drill(['-ing','-tion','-ment','-ness','-able','-less','-ful','-ly'], 22, 605, 1, 1), 22),
+  L('Beginnings',         drill(['un-','re-','pre-','dis-','over-','under-','out-','mis-'], 22, 606, 1, 1), 22),
+  L('Top 50 Words 1',     words(W_FAST, 30, 607), 26),
+  L('Top 50 Words 2',     words(W_FAST, 30, 608), 28)
+]},
+{ name:'Fluency', colour:'#00c7be', note:'Real words and sentences',
+  tip:'Read one word ahead of the one your fingers are typing.',
+  lessons:[
+  L('Common Words 1',    words(W_ALL, 26, 501), 24),
+  L('Common Words 2',    words(W_ALL, 26, 502), 26),
+  L('Short Sentences',   SENTS.slice(0,3).join(' '), 26),
+  L('Longer Sentences',  SENTS.slice(3,6).join(' '), 28),
+  L('Mixed Sentences',   SENTS2.slice(0,4).join(' '), 28),
+  L('Speed Burst 1',     words(W_FAST, 20, 509), 32, 'Short and fast. Push your pace, then check what accuracy it cost you.'),
+  L('Speed Burst 2',     words(W_FAST, 20, 510), 34),
+  L('Dynamic Practice',  '', 30, 'A fresh set of words every time you start this lesson.')
+]},
+{ name:'Code & Symbols', colour:'#8e8e93', note:'For writing in a terminal or editor',
+  tip:'Almost every symbol needs shift. Use the shift key on the opposite hand.',
+  lessons:[
+  L('Brackets',          '( ) [ ] { } ( ) [ ] { } (a) [b] {c} ((x)) [[y]] {{z}} ( ) [ ] { }', 16, 'Round brackets are shifted 9 and 0; curly ones are shifted square brackets.'),
+  L('Operators',         '+ - * / = < > != == <= >= += -= => -> && || + - * / = < >', 16),
+  L('Symbols: @ # $ %',  '@ # $ % ^ & _ ~ | @ # $ % ^ & _ ~ | @name #tag $var %rate ^up &and _sep', 16),
+  L('Code Words',        words(W_CODE, 24, 701), 22),
+  L('Code Lines',        'const total = items.length; function add(a, b) { return a + b; } if (x >= 10) { run(); }', 20),
+  L('Paths & URLs',      'C:/Users/docs/file.txt https://example.com/page?id=42 ../src/index.js ~/.config/app.json', 18)
+]},
+{ name:'Endurance', colour:'#ff3b30', note:'Long passages on mixed subjects',
+  tip:'Settle into a pace you could hold to the end. The clock pauses if you stop for a while.',
+  lessons:[
+  L('The Deep Ocean',      P('ocean'), 28),
+  L('Bread and Time',      P('bread'), 28),
+  L('The Night Sky',       P('sky'), 28),
+  L('Libraries',           P('library'), 28),
+  L('Rain',                P('rain'), 28),
+  L('Trains',              P('trains'), 28),
+  L('Bees',                P('bees'), 28),
+  L('Walking Uphill',      P('mountains'), 28),
+  L('Keeping Time',        P('clocks'), 28),
+  L('Glass',               P('glass'), 28),
+  L('Sleep',               P('sleep'), 28),
+  L('Rivers',              P('rivers'), 28),
+  L('On Attention',        P('attention'), 28),
+  L('On Rhythm',           P('rhythm'), 28),
+  L('On Long Sessions',    P('endurance'), 28),
+  L('On the Layout',       P('layout'), 28),
+  L('Mixed: Sea & Sky',    P('ocean','sky'), 30),
+  L('Mixed: Slow Things',  P('bread','rain','sleep'), 30),
+  L('Mixed: Journeys',     P('trains','mountains','rivers'), 30),
+  L('Mixed: Made Things',  P('glass','clocks','library'), 30),
+  L('The Long Haul',       P('bread','sky','bees','mountains','library','rhythm'), 30)
+]},
+{ name:'Timed Tests', colour:'#007aff', note:'Endless text against the clock',
+  tip:'The text never runs out. Type until the clock reaches zero — the score is taken at the end.',
+  lessons:[
+  E('1 minute test',    60,   30, 'One minute. Short enough to push hard on.'),
+  E('2 minute test',    120,  30),
+  E('3 minute test',    180,  30),
+  E('5 minute test',    300,  30, 'Long enough that pacing starts to matter more than bursts.'),
+  E('10 minute test',   600,  30),
+  E('15 minute test',   900,  30),
+  E('30 minute test',   1800, 30, 'A serious sitting. The clock pauses if you stop for 15 seconds.'),
+  E('60 minute test',   3600, 30),
+  E('Endless practice', null, 30, 'No limit and no end. Type as long as you like, then press Finish session.')
+]}
+];
+
+const LESSONS = [];
+COURSE.forEach(sec => sec.lessons.forEach(l => {
+  l.section = sec.name; l.secTip = sec.tip; l.colour = sec.colour;
+  l.key = sec.name + '::' + l.title;      // stable across reordering
+  LESSONS.push(l);
+}));
+
+function lessonText(l){
+  if (l.title === 'Dynamic Practice'){
+    return words(W_ALL.concat(W_TOP, W_BOT, W_FAST), 32, Math.floor(Math.random()*99999));
+  }
+  return l.text;
+}
+function countWords(t){ return t.split(/\s+/).filter(Boolean).length; }
+function estMinutes(l){
+  if (l.endless) return 0;
+  const w = countWords(l.text || '');
+  return w >= 200 ? Math.round(w / 30) : 0;
+}
+function fmtClock(secs){
+  secs = Math.max(0, Math.round(secs));
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+function fmtDuration(ms){
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return mins + 'm';
+  return Math.floor(mins/60) + 'h ' + (mins % 60) + 'm';
+}
+
+/* =====================================================================
+   5. SAVED PROGRESS  (v3: keyed by section::title, not by lesson number,
+      so adding lessons never reassigns old results to the wrong lesson)
+   ===================================================================== */
+const SAVE_KEY = 'typinglab.progress.v3';
+let save = load();
+function load(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (raw && raw.lessons) return raw;
+  } catch(e){}
+  return {lessons:{}, history:[], missed:{}, points:0, totalMs:0, bestWpm:0, opts:{}};
+}
+function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
+save.opts    = save.opts || {};
+save.lessons = save.lessons || {};
+save.history = save.history || [];
+save.missed  = save.missed || {};
+save.totalMs = save.totalMs || 0;
+save.bestWpm = save.bestWpm || 0;
+if (save.opts.hands === undefined) save.opts.hands = true;
+
+/* =====================================================================
+   6. UI BUILDERS
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+
+function handSVG(side){
+  const order   = side === 'l' ? ['lp','lr','lm','li'] : ['ri','rm','rr','rp'];
+  const heights = side === 'l' ? [46,62,70,60] : [60,70,62,46];
+  const tops    = side === 'l' ? [40,24,16,26] : [26,16,24,40];
+  let f = '';
+  order.forEach((code, i) => {
+    const x = 14 + i * 22;
+    f += '<rect class="fg" data-f="' + code + '" x="' + x + '" y="' + tops[i] +
+         '" width="17" height="' + heights[i] + '" rx="8.5"/>';
+  });
+  const thumbX = side === 'l' ? 100 : 6;
+  const rot = side === 'l' ? 28 : -28;
+  const cx = side === 'l' ? 108 : 14;
+  f += '<rect class="fg" data-f="th" x="' + thumbX + '" y="72" width="16" height="40" rx="8" transform="rotate(' + rot + ' ' + cx + ' 92)"/>';
+  return '<svg width="104" height="118" viewBox="0 0 126 140">' +
+    '<rect class="palm" x="10" y="86" width="106" height="46" rx="17"/>' + f +
+    '<text class="hand-lbl" x="63" y="138">' + (side === 'l' ? 'left' : 'right') + '</text></svg>';
+}
+function buildHands(){ $('hands').innerHTML = handSVG('l') + handSVG('r'); }
+
+function buildTOC(){
+  const toc = $('toc');
+  const frag = document.createDocumentFragment();
+  COURSE.forEach(sec => {
+    const h = document.createElement('div');
+    h.className = 'sec';
+    h.innerHTML = '<span class="sec-dot" style="background:' + sec.colour + '"></span>' +
+                  '<span class="sec-name"></span>' +
+                  '<span class="sec-count" data-sec="' + esc(sec.name) + '"></span>';
+    h.querySelector('.sec-name').textContent = sec.name;
+    frag.appendChild(h);
+    const n = document.createElement('div');
+    n.className = 'sec-note';
+    n.textContent = sec.note;
+    frag.appendChild(n);
+    sec.lessons.forEach(l => {
+      // a lesson already called "3 minute test" doesn't need a duration badge too
+      const mins = /minute/.test(l.title) ? 0 : estMinutes(l);
+      const b = document.createElement('button');
+      b.className = 'lrow';
+      b.dataset.key = l.key;
+      b.innerHTML = '<span class="lnum"></span><span class="ltitle"></span>' +
+                    (mins ? '<span class="lmeta">' + mins + 'm</span>' : '') +
+                    '<span class="lstars"></span>';
+      b.querySelector('.lnum').textContent = l.id;
+      b.querySelector('.ltitle').textContent = l.title;
+      b.addEventListener('mousedown', e => e.preventDefault());
+      b.onclick = () => { b.blur(); showPractice(); openLesson(l.key); closeSidebar(); };
+      frag.appendChild(b);
+    });
+  });
+  toc.appendChild(frag);
+  refreshTOC();
+}
+
+function refreshTOC(){
+  let stars = 0, done = 0;
+  LESSONS.forEach(l => {
+    const rec = save.lessons[l.key];
+    const row = document.querySelector('.lrow[data-key="' + CSS.escape(l.key) + '"]');
+    if (!row) return;
+    row.classList.toggle('done', !!rec);
+    row.classList.toggle('active', l.key === current.key);
+    row.querySelector('.lnum').style.background = rec ? l.colour : '';
+    row.querySelector('.lstars').textContent = rec ? '★'.repeat(rec.stars) : '';
+    if (rec){ stars += rec.stars; done++; }
+  });
+  COURSE.forEach(sec => {
+    const el = document.querySelector('.sec-count[data-sec="' + CSS.escape(sec.name) + '"]');
+    if (!el) return;
+    el.textContent = sec.lessons.filter(l => save.lessons[l.key]).length + '/' + sec.lessons.length;
+  });
+  const pct = Math.round(done / LESSONS.length * 100);
+  $('courseBar').style.width = pct + '%';
+  $('pPct').textContent  = pct + '%';
+  $('pStars').textContent = stars;
+  $('pBest').textContent = save.bestWpm || 0;
+  $('pTime').textContent = fmtDuration(save.totalMs || 0);
+  const row = document.querySelector('.lrow.active');
+  if (row) row.scrollIntoView({block:'nearest'});
+}
+
+/* =====================================================================
+   7. TYPING ENGINE
+   ===================================================================== */
+const IDLE_MS = 15000;      // after this long without a key, the clock pauses
+const AHEAD    = 500;       // keep at least this many chars queued in endless mode
+const KEEP_BACK = 400;      // never prune a paragraph within this many chars of pos
+
+let current = LESSONS[0];
+let chars = [], paraInfo = [];
+let pos = 0, lastPainted = -1;
+let started = 0, lastKey = 0, idleAccum = 0;
+let finished = false;
+let typedOk = 0, errors = 0, errFlag = false;
+let missed = {};
+let totalWords = 0, wordsTyped = 0;
+let supply = null;
+let tick = null;
+
+function lessonByKey(key){ return LESSONS.find(l => l.key === key); }
+
+function openLesson(key){
+  const l = typeof key === 'string' ? lessonByKey(key) : key;
+  if (!l) return;
+  current = l;
+  save.opts.last = l.key; persist();
+  $('lessonLabel').textContent = 'Lesson ' + l.id + ' · ' + l.section;
+  $('lessonName').textContent = l.title;
+  $('tipText').textContent = l.tip || l.secTip || '';
+  $('finishBtn').classList.toggle('show', !!(l.endless && !l.seconds));
+  resetLesson();
+  refreshTOC();
+}
+
+/* Build the spans for one paragraph and append it. Words sit inside a nowrap
+   .chunk so they never split; the space between words is a real, breakable
+   space appended directly to the paragraph — the only place a line may wrap. */
+function appendParagraph(pText){
+  const box = $('text');
+  const pd = document.createElement('div');
+  pd.className = 'para';
+  const startIdx = chars.length;
+  let chunk = null, atWordStart = true;
+  for (let i = 0; i < pText.length; i++){
+    const c = pText[i];
+    const s = document.createElement('span');
+    s.className = c === ' ' ? 'ch sp' : 'ch';
+    s.textContent = c;
+    if (c === ' '){
+      pd.appendChild(s); chunk = null; atWordStart = true;
+    } else {
+      if (!chunk){ chunk = document.createElement('span'); chunk.className = 'chunk'; pd.appendChild(chunk); }
+      chunk.appendChild(s);
+      if (atWordStart){ totalWords++; atWordStart = false; }
+    }
+    chars.push({c, el:s});
+  }
+  box.appendChild(pd);
+  paraInfo.push({el:pd, start:startIdx, end:chars.length - 1});
+}
+
+/* Endless mode would grow the DOM without limit over a long session, so
+   paragraphs finished well behind the cursor are removed and the scroll
+   position is corrected by exactly the height that disappeared. */
+function pruneBehind(){
+  const box = $('text'), sc = $('scroller');
+  while (paraInfo.length > 3 && paraInfo[0].end < pos - KEEP_BACK){
+    const p = paraInfo.shift();
+    const before = box.offsetHeight;
+    p.el.remove();
+    const after = box.offsetHeight;
+    for (let i = p.start; i <= p.end; i++) if (chars[i]) chars[i].el = null;
+    sc.scrollTop = Math.max(0, sc.scrollTop - (before - after));
+  }
+}
+
+function topUp(){
+  if (!current.endless) return;
+  while (chars.length - pos < AHEAD) appendParagraph(supply());
+}
+
+function resetLesson(){
+  const box = $('text');
+  box.innerHTML = '';
+  chars = []; paraInfo = []; totalWords = 0;
+
+  if (current.endless){
+    supply = makeSupply();
+    pos = 0;
+    topUp();
+  } else {
+    supply = null;
+    lessonText(current).split('\n').forEach(p => appendParagraph(p));
+  }
+
+  pos = 0; lastPainted = -1; wordsTyped = 0;
+  started = 0; lastKey = 0; idleAccum = 0;
+  finished = false; typedOk = 0; errors = 0; errFlag = false; missed = {};
+  if (tick){ clearInterval(tick); tick = null; }
+
+  $('overlay').classList.remove('show');
+  $('hint').classList.remove('hide');
+  $('sWpm').textContent = '0';
+  $('sAcc').textContent = '100%';
+  $('timeStat').classList.remove('paused','urgent');
+  $('timeLab').textContent = current.seconds ? 'Time left' : 'Time';
+  $('sTime').textContent = current.seconds ? fmtClock(current.seconds) : '0:00';
+  $('leftLab').textContent = current.endless ? 'Words typed' : 'Words left';
+  $('sLeft').textContent = current.endless ? 0 : totalWords;
+  $('lprog').classList.toggle('hide', !!(current.endless && !current.seconds));
+  $('lessonBar').style.width = '0%';
+  $('scroller').scrollTop = 0;
+  paint();
+}
+
+/* Only the two characters that actually changed are touched. Repainting the
+   whole lesson here cost ~13ms per keystroke on the longest passages. */
+function paint(){
+  if (lastPainted >= 0 && chars[lastPainted] && chars[lastPainted].el){
+    chars[lastPainted].el.classList.remove('cur','errnow');
+  }
+  const ch = chars[pos];
+  if (ch && ch.el){
+    ch.el.classList.add('cur');
+    if (errFlag) ch.el.classList.add('errnow'); else ch.el.classList.remove('errnow');
+  }
+  lastPainted = pos;
+  highlightFinger();
+  keepVisible();
+}
+
+function keepVisible(){
+  const ch = chars[pos];
+  const sc = $('scroller');
+  if (!ch || !ch.el) return;
+  const top = ch.el.offsetTop, h = sc.clientHeight, lh = ch.el.offsetHeight || 40;
+  if (top + lh > sc.scrollTop + h - 8) sc.scrollTop = Math.max(0, top - h * 0.35);
+  else if (top < sc.scrollTop) sc.scrollTop = Math.max(0, top - h * 0.35);
+}
+
+function highlightFinger(){
+  document.querySelectorAll('.fg.on').forEach(e => e.classList.remove('on'));
+  const ch = chars[pos];
+  if (!ch) return;
+  const m = CHARMAP[ch.c];
+  if (!m) return;
+  document.querySelectorAll('.fg[data-f="' + m.f + '"]').forEach(e => e.classList.add('on'));
+  if (m.shift){
+    const sf = m.f[0] === 'l' ? 'rp' : 'lp';         // shift with the opposite hand
+    const sEl = document.querySelector('.fg[data-f="' + sf + '"]');
+    if (sEl) sEl.classList.add('on');
+  }
+}
+
+function elapsedMs(){
+  if (!started) return 0;
+  const now = Date.now();
+  const idleNow = Math.max(0, now - lastKey - IDLE_MS);
+  return Math.max(0, now - started - idleAccum - idleNow);
+}
+function isPaused(){ return started && (Date.now() - lastKey > IDLE_MS); }
+
+function startTimer(){
+  started = Date.now();
+  lastKey = started;
+  $('hint').classList.add('hide');
+  tick = setInterval(updateStats, 200);
+}
+
+function updateStats(){
+  const secs = elapsedMs() / 1000;
+  const mins = Math.max(secs / 60, 1/60);
+  const wpm = Math.round((typedOk / 5) / mins);
+  const acc = typedOk + errors === 0 ? 100 : Math.round(typedOk / (typedOk + errors) * 100);
+  $('sWpm').textContent = isFinite(wpm) ? wpm : 0;
+  $('sAcc').textContent = acc + '%';
+
+  if (current.seconds){
+    const left = current.seconds - secs;
+    $('sTime').textContent = fmtClock(left);
+    $('timeStat').classList.toggle('urgent', left <= 10);
+    $('lessonBar').style.width = Math.min(100, secs / current.seconds * 100) + '%';
+    if (left <= 0 && !finished){ finish(); return {wpm, acc, secs}; }
+  } else {
+    $('sTime').textContent = fmtClock(secs);
+    if (!current.endless) $('lessonBar').style.width = (pos / chars.length * 100) + '%';
+  }
+  $('sLeft').textContent = current.endless ? wordsTyped : Math.max(0, totalWords - wordsTyped);
+  $('timeStat').classList.toggle('paused', !!isPaused());
+  return {wpm, acc, secs};
+}
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (statsOpen){
+    if (e.key === 'Escape'){ showPractice(); }
+    return;
+  }
+
+  if (finished){
+    if (e.key === 'Enter'){ e.preventDefault(); move(1); return; }
+    if (e.key === 'r' || e.key === 'R'){ e.preventDefault(); resetLesson(); return; }
+    return;
+  }
+
+  if (e.key === 'Escape'){ resetLesson(); return; }
+  if (e.key === 'Tab'){ e.preventDefault(); return; }
+
+  if (e.key === 'Backspace'){
+    e.preventDefault();
+    if (pos === 0) return;
+    pos--;
+    const el = chars[pos].el;                 // may be null if pruned far behind
+    if (el) el.classList.remove('done','err');
+    if (chars[pos].c !== ' ' && (pos === 0 || chars[pos-1].c === ' ')) wordsTyped = Math.max(0, wordsTyped - 1);
+    if (typedOk > 0) typedOk--;
+    errFlag = false;
+    paint();
+    return;
+  }
+
+  if (e.key.length !== 1 && e.key !== ' ') return;
+  e.preventDefault();
+
+  const want = chars[pos];
+  if (!want) return;
+
+  const now = Date.now();
+  if (!started) startTimer();
+  else {
+    const gap = now - lastKey;
+    if (gap > IDLE_MS) idleAccum += gap - IDLE_MS;    // a break costs nothing
+  }
+  lastKey = now;
+
+  if (e.key === want.c){
+    if (want.el){ want.el.classList.remove('cur','errnow','err'); want.el.classList.add('done'); }
+    typedOk++;
+    errFlag = false;
+    if (want.c !== ' ' && (pos === 0 || chars[pos-1].c === ' ')) wordsTyped++;
+    pos++;
+    if (current.endless){ topUp(); pruneBehind(); }
+    else if (pos >= chars.length){ finish(); return; }
+    paint();
+    updateStats();
+  } else {
+    errors++;
+    errFlag = true;
+    missed[want.c] = (missed[want.c] || 0) + 1;
+    if (want.el) want.el.classList.add('err','errnow');
+    updateStats();
+  }
+});
+
+function troubleKeys(map, n){
+  const list = Object.keys(map).sort((a,b) => map[b] - map[a]).slice(0, n || 3);
+  if (!list.length) return '';
+  return list.map(c => '<kbd>' + (c === ' ' ? 'space' : esc(c)) + '</kbd>').join(' ');
+}
+
+function finish(){
+  if (finished) return;
+  finished = true;
+  if (tick){ clearInterval(tick); tick = null; }
+
+  const secs = current.seconds ? Math.min(current.seconds, elapsedMs()/1000) : elapsedMs()/1000;
+  const mins = Math.max(secs / 60, 1/60);
+  const wpm = Math.round((typedOk / 5) / mins);
+  const acc = typedOk + errors === 0 ? 100 : Math.round(typedOk / (typedOk + errors) * 100);
+
+  $('lessonBar').style.width = '100%';
+  $('sTime').textContent = current.seconds ? '0:00' : fmtClock(secs);
+  $('timeStat').classList.remove('paused','urgent');
+
+  let stars = 1;
+  if (acc >= 92 && wpm >= current.goal * 0.7) stars = 2;
+  if (acc >= 97 && wpm >= current.goal) stars = 3;
+
+  const prev = save.lessons[current.key];
+  const isBest = !prev || wpm > prev.wpm;
+  save.lessons[current.key] = {
+    stars: Math.max(stars, prev ? prev.stars : 0),
+    wpm:   Math.max(wpm, prev ? prev.wpm : 0),
+    acc:   isBest ? acc : (prev ? prev.acc : acc)
+  };
+  save.points  = (save.points || 0) + typedOk;
+  save.totalMs = (save.totalMs || 0) + elapsedMs();
+
+  // A single impossible figure would corrupt the dashboard for good, so only
+  // measurements that could have come from human hands are recorded. The world
+  // record is around 216 wpm; anything past 250, or a run over in a blink, is a
+  // stuck key or an artefact rather than a score.
+  const plausible = secs >= 3 && wpm <= 250;
+  if (plausible){
+    if (typedOk >= 50 && wpm > (save.bestWpm || 0)) save.bestWpm = wpm;
+    Object.keys(missed).forEach(c => { save.missed[c] = (save.missed[c] || 0) + missed[c]; });
+    save.history.push({ts:Date.now(), title:current.title, section:current.section,
+                       wpm:wpm, acc:acc, ms:elapsedMs(), words:wordsTyped});
+    if (save.history.length > 200) save.history = save.history.slice(-200);
+  }
+  persist();
+  refreshTOC();
+
+  $('rWpm').textContent   = wpm;
+  $('rAcc').textContent   = acc + '%';
+  $('rErr').textContent   = errors;
+  $('rWords').textContent = wordsTyped;
+  $('rTitle').textContent = stars === 3 ? 'Perfect' : stars === 2 ? 'Nice work' : 'Session complete';
+  $('rSub').textContent = stars === 3
+    ? 'You reached the goal of ' + current.goal + ' wpm with excellent accuracy.'
+    : 'Goal: ' + current.goal + ' wpm at 97% accuracy. Repeat to earn more stars.';
+  $('rBadge').style.display = (isBest && prev) ? 'inline-block' : 'none';
+  const tk = troubleKeys(missed, 3);
+  $('rTrouble').innerHTML = tk ? 'Trouble keys this run: ' + tk : '';
+
+  const si = $('rStars').querySelectorAll('i');
+  si.forEach(x => x.classList.remove('on'));
+  si.forEach((x, i) => { if (i < stars) setTimeout(() => x.classList.add('on'), 200 + i * 240); });
+  $('overlay').classList.add('show');
+}
+
+/* =====================================================================
+   8. PROGRESS DASHBOARD
+   ===================================================================== */
+let statsOpen = false;
+
+function ringSVG(pct){
+  const r = 40, c = 2 * Math.PI * r, off = c * (1 - pct/100);
+  return '<svg width="98" height="98" viewBox="0 0 100 100">' +
+    '<circle cx="50" cy="50" r="' + r + '" fill="none" stroke="#e8e8ed" stroke-width="9"/>' +
+    '<circle cx="50" cy="50" r="' + r + '" fill="none" stroke="#0071e3" stroke-width="9" ' +
+      'stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" ' +
+      'transform="rotate(-90 50 50)"/></svg>';
+}
+
+function lineChartSVG(vals, colour, fillId){
+  const W = 620, H = 170, pad = 26;
+  if (vals.length < 2) return '';
+  const max = Math.max.apply(null, vals), min = Math.min.apply(null, vals);
+  const span = Math.max(1, max - min);
+  const x = i => pad + i * (W - pad*2) / (vals.length - 1);
+  const y = v => pad + (1 - (v - min) / span) * (H - pad*2);
+  let d = '', area = '';
+  vals.forEach((v, i) => { d += (i ? ' L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); });
+  area = d + ' L' + x(vals.length-1).toFixed(1) + ' ' + (H-pad) + ' L' + pad + ' ' + (H-pad) + ' Z';
+  let dots = '';
+  vals.forEach((v, i) => {
+    dots += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="3" fill="#fff" stroke="' + colour + '" stroke-width="2"/>';
+  });
+  return '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+    '<defs><linearGradient id="' + fillId + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="' + colour + '" stop-opacity=".18"/>' +
+      '<stop offset="100%" stop-color="' + colour + '" stop-opacity="0"/></linearGradient></defs>' +
+    '<line x1="' + pad + '" y1="' + (H-pad) + '" x2="' + (W-pad) + '" y2="' + (H-pad) + '" stroke="#e8e8ed"/>' +
+    '<path d="' + area + '" fill="url(#' + fillId + ')"/>' +
+    '<path d="' + d + '" fill="none" stroke="' + colour + '" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+    dots +
+    '<text x="' + pad + '" y="14" font-size="11" fill="#a1a1a6">' + max + '</text>' +
+    '<text x="' + pad + '" y="' + (H-pad+15) + '" font-size="11" fill="#a1a1a6">' + min + '</text>' +
+    '</svg>';
+}
+
+function renderStats(){
+  const h = save.history.slice();
+  const done = LESSONS.filter(l => save.lessons[l.key]).length;
+  const pct  = Math.round(done / LESSONS.length * 100);
+  const stars = LESSONS.reduce((a,l) => a + (save.lessons[l.key] ? save.lessons[l.key].stars : 0), 0);
+  const last10 = h.slice(-10);
+  const avgWpm = last10.length ? Math.round(last10.reduce((a,r)=>a+r.wpm,0)/last10.length) : 0;
+  const avgAcc = last10.length ? Math.round(last10.reduce((a,r)=>a+r.acc,0)/last10.length) : 0;
+  const recent = h.slice(-25);
+
+  let html = '';
+  html += '<h1 class="sv-h1">Your progress</h1>';
+  html += '<div class="sv-sub">' + (h.length ? h.length + ' sessions recorded' : 'No sessions recorded yet') + '</div>';
+
+  html += '<div class="grid g4">' +
+    kpi(save.bestWpm || 0, 'Best speed', 'words per minute') +
+    kpi(avgWpm, 'Average speed', 'last 10 sessions') +
+    kpi(avgAcc + '%', 'Average accuracy', 'last 10 sessions') +
+    kpi(fmtDuration(save.totalMs || 0), 'Time practised', 'total') +
+    '</div>';
+
+  html += '<div class="grid g2">';
+
+  // speed trend
+  html += '<div class="pane"><h3>Speed over time</h3><div class="note">Words per minute, most recent ' +
+          Math.min(25, h.length) + ' sessions</div>';
+  html += recent.length >= 2
+    ? lineChartSVG(recent.map(r => r.wpm), '#0071e3', 'gw')
+    : '<div class="empty">Finish at least two sessions to see a trend line here.</div>';
+  html += '</div>';
+
+  // course completion
+  html += '<div class="pane"><h3>Course completion</h3><div class="note">' + done + ' of ' + LESSONS.length + ' lessons</div>' +
+    '<div class="ringwrap">' + ringSVG(pct) +
+    '<div><div class="ring-num">' + pct + '%</div><div class="ring-lab">complete</div>' +
+    '<div class="ring-lab" style="margin-top:8px">' + stars + ' stars earned</div></div></div></div>';
+
+  html += '</div><div class="grid g2">';
+
+  // problem keys
+  html += '<div class="pane"><h3>Problem keys</h3><div class="note">Where your fingers go wrong most often, across every session</div>';
+  const mk = Object.keys(save.missed).sort((a,b) => save.missed[b] - save.missed[a]).slice(0, 8);
+  if (!mk.length){
+    html += '<div class="empty">Nothing to report yet — make some mistakes first.</div>';
+  } else {
+    const top = save.missed[mk[0]];
+    html += '<div class="bars">';
+    mk.forEach(c => {
+      const n = save.missed[c];
+      html += '<div class="bar"><div class="kc">' + (c === ' ' ? '␣' : esc(c)) + '</div>' +
+              '<div class="track"><i style="width:' + Math.round(n/top*100) + '%"></i></div>' +
+              '<div class="n">' + n + '</div></div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // accuracy trend
+  html += '<div class="pane"><h3>Accuracy over time</h3><div class="note">Percentage correct on the first attempt</div>';
+  html += recent.length >= 2
+    ? lineChartSVG(recent.map(r => r.acc), '#00a862', 'ga')
+    : '<div class="empty">Two sessions needed before this chart appears.</div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  // recent sessions
+  html += '<div class="pane"><h3>Recent sessions</h3><div class="note">Newest first</div>';
+  if (!h.length){
+    html += '<div class="empty">Finish a lesson and it will be listed here.</div>';
+  } else {
+    html += '<table class="hist"><tr><th>Lesson</th><th class="r">wpm</th><th class="r">accuracy</th>' +
+            '<th class="r">words</th><th class="r">time</th></tr>';
+    h.slice(-12).reverse().forEach(r => {
+      html += '<tr><td>' + esc(r.title) + '</td><td class="r">' + r.wpm + '</td>' +
+              '<td class="r">' + r.acc + '%</td><td class="r">' + (r.words || 0) + '</td>' +
+              '<td class="r">' + fmtClock((r.ms||0)/1000) + '</td></tr>';
+    });
+    html += '</table>';
+  }
+  html += '</div>';
+
+  $('statsView').innerHTML = html;
+}
+function kpi(v, lab, sub){
+  return '<div class="pane kpi"><div class="big">' + v + '</div><div class="lab">' + lab + '</div>' +
+         '<div class="sub">' + sub + '</div></div>';
+}
+
+function showStats(){
+  statsOpen = true;
+  renderStats();
+  $('statsView').classList.add('show');
+  $('stage').style.display = 'none';
+  $('tabStats').classList.add('on');
+  $('tabPractice').classList.remove('on');
+}
+function showPractice(){
+  statsOpen = false;
+  $('statsView').classList.remove('show');
+  $('stage').style.display = 'flex';
+  $('tabPractice').classList.add('on');
+  $('tabStats').classList.remove('on');
+  keepVisible();
+}
+
+/* =====================================================================
+   9. CONTROLS
+   ===================================================================== */
+function move(delta){
+  const i = LESSONS.findIndex(l => l.key === current.key);
+  const n = LESSONS[i + delta];
+  if (n){ showPractice(); openLesson(n.key); }
+}
+// Controls must never keep keyboard focus: a focused <button> would treat a
+// later Space or Enter press as a click and hijack the learner's typing.
+function wire(id, fn){
+  const el = $(id);
+  el.addEventListener('mousedown', e => e.preventDefault());
+  el.addEventListener('click', e => { el.blur(); fn(e); });
+}
+wire('prevBtn', () => move(-1));
+wire('nextBtn', () => move(1));
+wire('restartBtn', () => { showPractice(); resetLesson(); });
+wire('rRepeat', resetLesson);
+wire('rNext', () => move(1));
+wire('finishBtn', () => { if (started && !finished) finish(); });
+wire('tabPractice', showPractice);
+wire('tabStats', showStats);
+
+function syncToggles(){
+  $('handBtn').classList.toggle('off', !save.opts.hands);
+  $('guide').style.display = save.opts.hands ? 'flex' : 'none';
+}
+wire('handBtn', () => { save.opts.hands = !save.opts.hands; persist(); syncToggles(); });
+wire('burger',  () => $('sidebar').classList.toggle('open'));
+function closeSidebar(){ $('sidebar').classList.remove('open'); }
+
+/* =====================================================================
+   10. BOOT
+   ===================================================================== */
+buildHands();
+buildTOC();
+syncToggles();
+openLesson(save.opts.last && lessonByKey(save.opts.last) ? save.opts.last : LESSONS[0].key);
+window.addEventListener('resize', keepVisible);
+</script>
+</body>
+</html>
